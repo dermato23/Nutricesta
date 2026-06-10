@@ -1,0 +1,20 @@
+# Ignore other projects
+/Flight Tracker/
+/agroforecast/
+
+# Android app ignores
+android_app/*.iml
+android_app/.gradle/
+android_app/local.properties
+android_app/.idea/
+android_app/build/
+android_app/captures/
+android_app/.externalNativeBuild/
+android_app/.cxx/
+
+# Backend ignores
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/consumo_inteligente.db
+backend/.env
