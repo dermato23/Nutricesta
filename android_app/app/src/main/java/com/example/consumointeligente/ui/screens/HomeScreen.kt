@@ -7,6 +7,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,6 +85,7 @@ fun HomeScreen() {
     var petTypeFilter by remember { mutableStateOf("Perro") }
     var petBreedFilter by remember { mutableStateOf("Criollo") }
     var petAgeFilter by remember { mutableStateOf("Entre 1 y 5 años") }
+    var showPetConfigModal by remember { mutableStateOf(false) }
     
     LaunchedEffect(selectedTab, petTypeFilter, petBreedFilter, petAgeFilter) {
         if (selectedTab == 1) {
@@ -625,131 +628,28 @@ fun HomeScreen() {
             } else if (selectedTab == 1) {
                 // MASCOTAS (Mismo estilo visual y de análisis que Mi Canasta)
                 
-                // Filtros de Mascota
-                Card(
+                Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = "Configurar Perfil de Mascota",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                    Text(
+                        text = "Análisis de Mascotas",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    IconButton(
+                        onClick = { showPetConfigModal = true },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color(0xFFF1F5F9))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Ajustes de Mascota",
+                            tint = Color(0xFF1E3A1E)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        var typeExpanded by remember { mutableStateOf(false) }
-                        var breedExpanded by remember { mutableStateOf(false) }
-                        var ageExpanded by remember { mutableStateOf(false) }
-
-                        val dogBreeds = listOf("Criollo", "Pinscher", "Poodle", "Labrador", "Golden Retriever")
-                        val catBreeds = listOf("Criollo", "Persa", "Siamés", "Angora", "Azul Ruso")
-                        val currentBreeds = if (petTypeFilter == "Perro") dogBreeds else catBreeds
-
-                        LaunchedEffect(petTypeFilter) {
-                            if (petTypeFilter == "Perro" && !dogBreeds.contains(petBreedFilter)) {
-                                petBreedFilter = "Criollo"
-                            } else if (petTypeFilter == "Gato" && !catBreeds.contains(petBreedFilter)) {
-                                petBreedFilter = "Criollo"
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Selector Mascota
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedButton(
-                                    onClick = { typeExpanded = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Column(horizontalAlignment = Alignment.Start) {
-                                        Text("Tipo", fontSize = 11.sp, color = Color(0xFF64748B))
-                                        Text(petTypeFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = typeExpanded,
-                                    onDismissRequest = { typeExpanded = false }
-                                ) {
-                                    listOf("Perro", "Gato").forEach { type ->
-                                        DropdownMenuItem(
-                                            text = { Text(type) },
-                                            onClick = {
-                                                petTypeFilter = type
-                                                typeExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Selector Raza
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedButton(
-                                    onClick = { breedExpanded = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Column(horizontalAlignment = Alignment.Start) {
-                                        Text("Raza", fontSize = 11.sp, color = Color(0xFF64748B))
-                                        Text(petBreedFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = breedExpanded,
-                                    onDismissRequest = { breedExpanded = false }
-                                ) {
-                                    currentBreeds.forEach { breed ->
-                                        DropdownMenuItem(
-                                            text = { Text(breed) },
-                                            onClick = {
-                                                petBreedFilter = breed
-                                                breedExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Selector Edad
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { ageExpanded = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Column(horizontalAlignment = Alignment.Start) {
-                                    Text("Rango de Edad", fontSize = 11.sp, color = Color(0xFF64748B))
-                                    Text(petAgeFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = ageExpanded,
-                                onDismissRequest = { ageExpanded = false }
-                            ) {
-                                listOf("Menos de un año", "Entre 1 y 5 años", "Entre 5 y 10 años", "Entre 10 y 15 años").forEach { age ->
-                                    DropdownMenuItem(
-                                        text = { Text(age) },
-                                        onClick = {
-                                            petAgeFilter = age
-                                            ageExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -935,6 +835,212 @@ fun HomeScreen() {
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color(0xFF92400E)
                             )
+                        }
+                    }
+                }
+            }
+            
+            // Modal de edición de preferencias de mascota
+            if (showPetConfigModal) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { showPetConfigModal = false }
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .align(Alignment.Center)
+                            .clickable(enabled = false) {}, // Evitar que clics en la tarjeta cierren el modal
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp)
+                        ) {
+                            // Fila de título y botón de cerrar "X"
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Editar Perfil de Mascota",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E3A1E)
+                                )
+                                IconButton(onClick = { showPetConfigModal = false }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Cerrar",
+                                        tint = Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(20.dp))
+                            
+                            // 1. Tipo de Mascota
+                            Text(
+                                text = "Tipo de Mascota",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            val types = listOf("Perro", "Gato")
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                types.forEach { type ->
+                                    val isSelected = petTypeFilter == type
+                                    val bgColor = if (isSelected) Color(0xFF1E3A1E) else Color(0xFFF1F5F9)
+                                    val textColor = if (isSelected) Color(0xFFBEF264) else Color(0xFF475569)
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(bgColor)
+                                            .clickable {
+                                                petTypeFilter = type
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (isSelected) {
+                                                Text("✓ ", color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            }
+                                            Text(type, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(20.dp))
+                            
+                            // 2. Raza de Mascota
+                            Text(
+                                text = "Raza",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            val dogBreeds = listOf("Criollo", "Pinscher", "Poodle", "Labrador", "Golden Retriever")
+                            val catBreeds = listOf("Criollo", "Persa", "Siamés", "Angora", "Azul Ruso")
+                            val currentBreeds = if (petTypeFilter == "Perro") dogBreeds else catBreeds
+                            
+                            // Organizar en filas de a 2
+                            val chunkedBreeds = currentBreeds.chunked(2)
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                chunkedBreeds.forEach { rowItems ->
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        rowItems.forEach { breed ->
+                                            val isSelected = petBreedFilter == breed
+                                            val bgColor = if (isSelected) Color(0xFF1E3A1E) else Color(0xFFF1F5F9)
+                                            val textColor = if (isSelected) Color(0xFFBEF264) else Color(0xFF475569)
+                                            
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(20.dp))
+                                                    .background(bgColor)
+                                                    .clickable {
+                                                        petBreedFilter = breed
+                                                    }
+                                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                                    .weight(1f),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    if (isSelected) {
+                                                        Text("✓ ", color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                    }
+                                                    Text(breed, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(20.dp))
+                            
+                            // 3. Edad de Mascota
+                            Text(
+                                text = "Rango de Edad",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            val ages = listOf("Menos de un año", "Entre 1 y 5 años", "Entre 5 y 10 años", "Entre 10 y 15 años")
+                            val chunkedAges = ages.chunked(2)
+                            
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                chunkedAges.forEach { rowItems ->
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        rowItems.forEach { age ->
+                                            val isSelected = petAgeFilter == age
+                                            val bgColor = if (isSelected) Color(0xFF1E3A1E) else Color(0xFFF1F5F9)
+                                            val textColor = if (isSelected) Color(0xFFBEF264) else Color(0xFF475569)
+                                            
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(20.dp))
+                                                    .background(bgColor)
+                                                    .clickable {
+                                                        petAgeFilter = age
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                                                    .weight(1f),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    if (isSelected) {
+                                                        Text("✓ ", color = textColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                    }
+                                                    Text(age, color = textColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            // Botón de guardar/aplicar
+                            Button(
+                                onClick = { showPetConfigModal = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF1E3A1E),
+                                    contentColor = Color(0xFFBEF264)
+                                )
+                            ) {
+                                Text("Guardar Cambios", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
                         }
                     }
                 }
