@@ -158,14 +158,15 @@ fun HomeScreen() {
         },
         floatingActionButtonPosition = FabPosition.Center
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF8FAFC)) // Beautiful premium light gray-blue background
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFF8FAFC)) // Beautiful premium light gray-blue background
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
             // 1. User Header Section
             Row(
                 modifier = Modifier
@@ -839,8 +840,9 @@ fun HomeScreen() {
                     }
                 }
             }
+        }
             
-            // Modal de edición de preferencias de mascota
+        // Modal de edición de preferencias de mascota
             if (showPetConfigModal) {
                 Box(
                     modifier = Modifier
