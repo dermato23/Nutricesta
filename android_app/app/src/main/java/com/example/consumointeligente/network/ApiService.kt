@@ -36,7 +36,9 @@ data class CategoryBreakdown(
 
 data class MonthHistoryItem(
     val month: String,
-    val amount: Double
+    val amount: Double,
+    val year: Int? = null,
+    val month_num: Int? = null
 )
 
 data class StoreBreakdown(

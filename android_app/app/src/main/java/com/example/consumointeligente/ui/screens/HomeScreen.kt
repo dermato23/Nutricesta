@@ -77,6 +77,8 @@ fun HomeScreen() {
     var expensePeriodFilter by remember { mutableStateOf(0) } // 0 = Año, 1 = Mes, 2 = Semana
     var petExpensePeriodFilter by remember { mutableStateOf(0) } // 0 = Año, 1 = Mes, 2 = Semana
     var chartTypeFilter by remember { mutableStateOf(0) } // 0 = Por Mes, 1 = Por Comercio
+    var selectedChartYear by remember { mutableStateOf<Int?>(null) }
+    var selectedChartMonth by remember { mutableStateOf<Int?>(null) }
     
     LaunchedEffect(selectedTab) {
         if (selectedTab == 1 && petStats == null) {
@@ -88,12 +90,17 @@ fun HomeScreen() {
         }
     }
     
-    LaunchedEffect(receiptResult) {
+    LaunchedEffect(receiptResult, selectedChartYear, selectedChartMonth) {
         if (receiptResult != null) {
             showSuccessPopup = true
+            selectedChartYear = null
+            selectedChartMonth = null
         }
         try {
-            stats = RetrofitClient.apiService.getFinancialStats()
+            stats = RetrofitClient.apiService.getFinancialStats(
+                year = selectedChartYear,
+                month = selectedChartMonth
+            )
         } catch (e: Exception) {
             Log.e("HomeScreen", "Error Fetching Stats", e)
         }
@@ -433,14 +440,25 @@ fun HomeScreen() {
                                     verticalAlignment = Alignment.Bottom
                                 ) {
                                     historyList.forEachIndexed { index, item ->
-                                        val isCurrent = index == historyList.lastIndex
-                                        val barColor = if (isCurrent) Color(0xFF1E3A1E) else Color(0xFFBEF264)
+                                        val isSelected = if (selectedChartYear != null && selectedChartMonth != null) {
+                                            selectedChartYear == item.year && selectedChartMonth == item.month_num
+                                        } else {
+                                            index == historyList.lastIndex
+                                        }
+                                        val barColor = if (isSelected) Color(0xFF1E3A1E) else Color(0xFFBEF264)
                                         val ratio = (item.amount / maxVal).toFloat()
                                         val barHeight = (ratio * 100).coerceAtLeast(6f).dp
                                         
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.width(48.dp)
+                                            modifier = Modifier
+                                                .width(48.dp)
+                                                .clickable {
+                                                    if (item.year != null && item.month_num != null) {
+                                                        selectedChartYear = item.year
+                                                        selectedChartMonth = item.month_num
+                                                    }
+                                                }
                                         ) {
                                             Box(
                                                 modifier = Modifier

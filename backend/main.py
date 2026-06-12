@@ -334,7 +334,12 @@ def get_financial_stats(year: int = None, month: int = None, db: Session = Depen
         y_val = int(r.year)
         m_val = int(r.month)
         m_name_short = MONTH_NAMES.get(m_val, "")[:3]
-        monthly_history.append({"month": m_name_short, "amount": round(r.total, 2)})
+        monthly_history.append({
+            "month": m_name_short, 
+            "amount": round(r.total, 2),
+            "year": y_val,
+            "month_num": m_val
+        })
         
     recipes_mock = []
     if latest_receipt and latest_receipt.recipes:
