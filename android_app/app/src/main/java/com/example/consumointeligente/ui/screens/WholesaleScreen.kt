@@ -147,7 +147,7 @@ fun WholesaleScreen() {
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "Lo que más sube",
+                            text = "Al alza",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 13.sp
                         )
@@ -169,7 +169,7 @@ fun WholesaleScreen() {
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "Lo que más baja",
+                            text = "A la baja",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 13.sp
                         )
