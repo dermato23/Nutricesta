@@ -39,6 +39,12 @@ data class MonthHistoryItem(
     val amount: Double
 )
 
+data class StoreBreakdown(
+    val store: String,
+    val amount: Double,
+    val percentage: Double
+)
+
 data class FinancialStatsResponse(
     val monthly_total: Double,
     val monthly_savings: Double = 0.0,
@@ -51,6 +57,7 @@ data class FinancialStatsResponse(
     val latest_health_score: Int = 0,
     val latest_health_reason: String = "",
     val categories_breakdown: List<CategoryBreakdown> = emptyList(),
+    val store_breakdown: List<StoreBreakdown> = emptyList(),
     val recipes: List<Recipe> = emptyList(),
     val health_score_diff: String = "",
     val protein_g: Double = 0.0,
@@ -76,6 +83,14 @@ data class PetStatsResponse(
     val recommendation: String
 )
 
+data class RecipePreferences(
+    val time: String = "",
+    val diets: List<String> = emptyList(),
+    val allergies: List<String> = emptyList(),
+    val goal: String = "",
+    val dish_types: List<String> = emptyList()
+)
+
 interface ApiService {
     @POST("/api/v1/receipts/upload")
     suspend fun uploadReceipt(@Body request: OCRRequest): ReceiptResponse
@@ -88,4 +103,33 @@ interface ApiService {
 
     @GET("/api/v1/stats/pets")
     suspend fun getPetStats(): PetStatsResponse
+
+    @GET("/api/v1/users/1/preferences")
+    suspend fun getRecipePreferences(): RecipePreferences
+
+    @POST("/api/v1/users/1/preferences")
+    suspend fun updateRecipePreferences(@Body prefs: RecipePreferences): Any
+
+    @POST("/api/v1/nutrition/ask")
+    suspend fun askNutritionQuestion(@Body request: AskNutritionRequest): AskNutritionResponse
+
+    @GET("/api/v1/stats/wholesale")
+    suspend fun getWholesaleTrends(): WholesaleTrendsResponse
 }
+
+data class AskNutritionRequest(
+    val question: String,
+    val year: Int? = null,
+    val month: Int? = null
+)
+
+data class AskNutritionResponse(
+    val answer: String
+)
+
+data class WholesaleTrendsResponse(
+    val week_start: String,
+    val week_end: String,
+    val suben: List<String>,
+    val bajan: List<String>
+)

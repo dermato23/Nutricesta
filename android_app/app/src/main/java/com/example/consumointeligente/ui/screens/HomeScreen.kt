@@ -76,6 +76,7 @@ fun HomeScreen() {
     var showSuccessPopup by remember { mutableStateOf(false) }
     var expensePeriodFilter by remember { mutableStateOf(0) } // 0 = Año, 1 = Mes, 2 = Semana
     var petExpensePeriodFilter by remember { mutableStateOf(0) } // 0 = Año, 1 = Mes, 2 = Semana
+    var chartTypeFilter by remember { mutableStateOf(0) } // 0 = Por Mes, 1 = Por Comercio
     
     LaunchedEffect(selectedTab) {
         if (selectedTab == 1 && petStats == null) {
@@ -374,70 +375,154 @@ fun HomeScreen() {
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = "Gastos por Mes",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(20.dp))
-                        
-                        val historyList = stats?.monthly_history ?: emptyList()
-                        if (historyList.isNotEmpty()) {
-                            val maxAmount = historyList.maxOfOrNull { it.amount } ?: 1.0
-                            val maxVal = if (maxAmount > 0) maxAmount else 1.0
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (chartTypeFilter == 0) "Gastos por Mes" else "Gastos por Comercio",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                modifier = Modifier.weight(1f)
+                            )
                             
+                            // Segmented control to choose chart type
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(160.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.Bottom
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF1F5F9))
+                                    .padding(2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                historyList.forEachIndexed { index, item ->
-                                    val isCurrent = index == historyList.lastIndex
-                                    val barColor = if (isCurrent) Color(0xFF1E3A1E) else Color(0xFFBEF264)
-                                    val ratio = (item.amount / maxVal).toFloat()
-                                    val barHeight = (ratio * 100).coerceAtLeast(6f).dp
-                                    
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.width(48.dp)
+                                listOf("Mes", "Comercio").forEachIndexed { index, label ->
+                                    val isSelected = chartTypeFilter == index
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color(0xFF1E3A1E) else Color.Transparent)
+                                            .clickable { chartTypeFilter = index }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        // The bar itself
-                                        Box(
-                                            modifier = Modifier
-                                                .height(barHeight)
-                                                .width(28.dp)
-                                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                                .background(barColor)
-                                        )
-                                        
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        
                                         Text(
-                                            text = item.month,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
-                                        )
-                                        
-                                        Text(
-                                            text = formatAbbreviated(item.amount),
+                                            text = label,
                                             fontSize = 11.sp,
-                                            color = Color(0xFF64748B)
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color(0xFFBEF264) else Color(0xFF475569)
                                         )
                                     }
                                 }
                             }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        if (chartTypeFilter == 0) {
+                            val historyList = stats?.monthly_history ?: emptyList()
+                            if (historyList.isNotEmpty()) {
+                                val maxAmount = historyList.maxOfOrNull { it.amount } ?: 1.0
+                                val maxVal = if (maxAmount > 0) maxAmount else 1.0
+                                
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(160.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    historyList.forEachIndexed { index, item ->
+                                        val isCurrent = index == historyList.lastIndex
+                                        val barColor = if (isCurrent) Color(0xFF1E3A1E) else Color(0xFFBEF264)
+                                        val ratio = (item.amount / maxVal).toFloat()
+                                        val barHeight = (ratio * 100).coerceAtLeast(6f).dp
+                                        
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.width(48.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(barHeight)
+                                                    .width(28.dp)
+                                                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                                    .background(barColor)
+                                            )
+                                            
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            
+                                            Text(
+                                                text = item.month,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF0F172A)
+                                            )
+                                            
+                                            Text(
+                                                text = formatAbbreviated(item.amount),
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "No hay datos de historial disponibles.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            }
                         } else {
-                            Text(
-                                text = "No hay datos de historial disponibles.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF64748B),
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            )
+                            val storeList = stats?.store_breakdown ?: emptyList()
+                            if (storeList.isNotEmpty()) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    storeList.forEach { storeItem ->
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = storeItem.store,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF0F172A)
+                                                )
+                                                Text(
+                                                    text = "$ ${formatCop(storeItem.amount)} COP (${storeItem.percentage}%)",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1E3A1E)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = { (storeItem.percentage / 100f).toFloat() },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp)),
+                                                color = Color(0xFF1E3A1E),
+                                                trackColor = Color(0xFFF1F5F9)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "No hay datos de comercios registrados.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            }
                         }
                     }
                 }

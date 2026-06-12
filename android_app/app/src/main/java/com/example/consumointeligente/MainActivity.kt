@@ -12,7 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.consumointeligente.ui.components.BottomNavBar
 import com.example.consumointeligente.ui.screens.HomeScreen
-import com.example.consumointeligente.ui.screens.SmartListScreen
+import com.example.consumointeligente.ui.screens.WholesaleScreen
 import com.example.consumointeligente.ui.screens.StatsScreen
 import com.example.consumointeligente.ui.screens.RecipesScreen
 import com.example.consumointeligente.theme.ConsumoInteligenteTheme
@@ -49,8 +49,8 @@ fun MainScreen() {
             composable("stats") {
                 StatsScreen()
             }
-            composable("smart_list") {
-                SmartListScreen()
+            composable("wholesale") {
+                WholesaleScreen()
             }
         }
     }

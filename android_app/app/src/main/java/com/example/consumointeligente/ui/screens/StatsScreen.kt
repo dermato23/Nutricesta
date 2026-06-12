@@ -21,6 +21,7 @@ import com.example.consumointeligente.network.RetrofitClient
 import com.example.consumointeligente.network.FinancialStatsResponse
 import com.example.consumointeligente.network.AvailableMonth
 import android.util.Log
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,11 +57,18 @@ fun NutritionDonutChart(
         Canvas(modifier = Modifier.fillMaxSize()) {
             android.util.Log.d("DonutChart", "Drawing donut: protein=$protein, carbs=$carbs, fat=$fat")
             val strokeWidth = 14.dp.toPx()
+            val minDim = size.minDimension - strokeWidth
+            val arcSize = androidx.compose.ui.geometry.Size(minDim, minDim)
+            val topLeftOffset = androidx.compose.ui.geometry.Offset(
+                x = (size.width - minDim) / 2f,
+                y = (size.height - minDim) / 2f
+            )
             
             // Dibujar pista de fondo
             drawCircle(
                 color = Color(0xFFF1F5F9),
-                radius = (size.minDimension - strokeWidth) / 2,
+                radius = minDim / 2f,
+                center = center,
                 style = Stroke(width = strokeWidth)
             )
             
@@ -80,6 +88,8 @@ fun NutritionDonutChart(
                     startAngle = -90f,
                     sweepAngle = cSweep,
                     useCenter = false,
+                    topLeft = topLeftOffset,
+                    size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
                 
@@ -89,6 +99,8 @@ fun NutritionDonutChart(
                     startAngle = -90f + cSweep,
                     sweepAngle = pSweep,
                     useCenter = false,
+                    topLeft = topLeftOffset,
+                    size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
                 
@@ -98,6 +110,8 @@ fun NutritionDonutChart(
                     startAngle = -90f + cSweep + pSweep,
                     sweepAngle = fSweep,
                     useCenter = false,
+                    topLeft = topLeftOffset,
+                    size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
             } else {
@@ -107,6 +121,8 @@ fun NutritionDonutChart(
                     startAngle = 0f,
                     sweepAngle = 360f,
                     useCenter = false,
+                    topLeft = topLeftOffset,
+                    size = arcSize,
                     style = Stroke(width = strokeWidth)
                 )
             }
@@ -166,15 +182,19 @@ fun NutritionDonutChart(
 @Composable
 fun StatsScreen() {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedMonth by remember { mutableStateOf<AvailableMonth?>(null) }
     var stats by remember { mutableStateOf<FinancialStatsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var userQuestion by remember { mutableStateOf("") }
     var dropdownExpanded by remember { mutableStateOf(false) }
+    var aiResponseText by remember { mutableStateOf<String?>(null) }
+    var isAiThinking by remember { mutableStateOf(false) }
     
     LaunchedEffect(selectedMonth) {
         isLoading = true
+        aiResponseText = null // Reset answer on startup or month change
         try {
             stats = RetrofitClient.apiService.getFinancialStats(
                 year = selectedMonth?.year,
@@ -280,12 +300,28 @@ fun StatsScreen() {
             val fGrams = stats!!.fat_g
             val scoreVal = stats!!.latest_health_score
             val scoreDiffVal = stats!!.health_score_diff.ifEmpty { "+0" }
-            val kcalTotal = (pGrams * 4 + cGrams * 4 + fGrams * 9).toInt()
+            val healthReasonVal = stats!!.latest_health_reason.ifEmpty { "Tu mercado tiene una buena base de alimentos frescos. Continúa incorporando variedad." }
             
             val totalMacros = pGrams + cGrams + fGrams
             val pPct = if (totalMacros > 0.0) (pGrams / totalMacros * 100).toInt() else 0
             val cPct = if (totalMacros > 0.0) (cGrams / totalMacros * 100).toInt() else 0
             val fPct = if (totalMacros > 0.0) (fGrams / totalMacros * 100).toInt() else 0
+
+            val carbsAdvice = when {
+                cPct > 55 -> "Nivel de carbohidratos elevado. Te sugiero balancear disminuyendo azúcares/procesados y priorizando carbohidratos complejos como la avena y el arroz integral en tus próximas compras."
+                cPct < 40 -> "Nivel de carbohidratos bajo. Si te sientes fatigado, considera añadir fuentes saludables como tubérculos o granos enteros."
+                else -> "Buen nivel de energía. Te sugiero priorizar carbohidratos complejos como la avena y el arroz integral en tus próximas compras."
+            }
+            
+            val proteinAdvice = when {
+                pPct < 25 -> "Nivel de proteína bajo. Considera incorporar más carnes magras, pescados, huevos o legumbres para alcanzar tu requerimiento diario."
+                else -> "Estás cerca de tu meta ideal. El pollo, lentejas y huevos que has comprado son excelentes fuentes de proteína."
+            }
+            
+            val fatAdvice = when {
+                fPct > 35 -> "Nivel de grasas elevado. Intenta moderar los aceites refinados y embutidos, y priorizar grasas saludables."
+                else -> "Balance saludable. Las grasas provenientes del aguacate y frutos secos son excelentes para regular tus hormonas."
+            }
             
             // Tarjeta de Contenido de Nutrición
             Card(
@@ -299,34 +335,6 @@ fun StatsScreen() {
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    // Fila de Indicador de Calorías
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Eco,
-                            contentDescription = "Eco",
-                            tint = Color(0xFF10B981),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color(0xFF0F172A))) {
-                                    append(String.format("%,d", kcalTotal).replace(',', '.'))
-                                }
-                                withStyle(style = SpanStyle(fontSize = 18.sp, color = Color(0xFF64748B))) {
-                                    append("/2300 ")
-                                }
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))) {
-                                    append("kcal")
-                                }
-                            }
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
                     // Donut y Desglose de Macronutrientes
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -373,7 +381,7 @@ fun StatsScreen() {
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF0F172A),
                                     modifier = Modifier.padding(start = 12.dp)
-                                )
+                               )
                             }
                             
                             // Proteínas (Morado)
@@ -449,17 +457,44 @@ fun StatsScreen() {
                             )
                         },
                         trailingIcon = {
-                            IconButton(onClick = {
-                                if (userQuestion.isNotBlank()) {
-                                    Toast.makeText(context, "NutriIA está analizando tu consulta...", Toast.LENGTH_LONG).show()
-                                    userQuestion = ""
+                            IconButton(
+                                onClick = {
+                                    if (userQuestion.isNotBlank() && !isAiThinking) {
+                                        val questionText = userQuestion
+                                        userQuestion = ""
+                                        isAiThinking = true
+                                        coroutineScope.launch {
+                                            try {
+                                                val req = com.example.consumointeligente.network.AskNutritionRequest(
+                                                    question = questionText,
+                                                    year = selectedMonth?.year ?: stats?.available_months?.firstOrNull()?.year,
+                                                    month = selectedMonth?.month ?: stats?.available_months?.firstOrNull()?.month
+                                                )
+                                                val resp = RetrofitClient.apiService.askNutritionQuestion(req)
+                                                aiResponseText = resp.answer
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Error al consultar a NutriIA: ${e.message}", Toast.LENGTH_LONG).show()
+                                            } finally {
+                                                isAiThinking = false
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !isAiThinking && userQuestion.isNotBlank()
+                            ) {
+                                if (isAiThinking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color(0xFF1E3A1E),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Send,
+                                        contentDescription = "Enviar",
+                                        tint = if (userQuestion.isNotBlank()) Color(0xFF1E3A1E) else Color(0xFF94A3B8)
+                                    )
                                 }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = "Enviar",
-                                    tint = Color(0xFF1E3A1E)
-                                )
                             }
                         },
                         shape = RoundedCornerShape(24.dp),
@@ -469,8 +504,154 @@ fun StatsScreen() {
                             disabledBorderColor = Color(0xFFE2E8F0),
                             errorBorderColor = Color(0xFFE2E8F0)
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isAiThinking
                     )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Tarjeta de Respuesta de IA
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "NutriIA",
+                            tint = Color(0xFF1E3A1E),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "NutriIA - Análisis y Recomendación",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E3A1E)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (aiResponseText != null) {
+                        Text(
+                            text = aiResponseText!!,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = Color(0xFF334155),
+                            lineHeight = 20.sp
+                        )
+                    } else {
+                        Text(
+                            text = "¡Hola! He analizado tus consumos y compras del mes. Aquí tienes algunas observaciones importantes para tu nutrición:",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF334155)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Detalle de macronutrientes
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF97316))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))) {
+                                            append("Carbohidratos ($cPct%): ")
+                                        }
+                                        append(carbsAdvice)
+                                    },
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF8B5CF6))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))) {
+                                            append("Proteínas ($pPct%): ")
+                                        }
+                                        append(proteinAdvice)
+                                    },
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF0D9488))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))) {
+                                            append("Grasas ($fPct%): ")
+                                        }
+                                        append(fatAdvice)
+                                    },
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        HorizontalDivider(color = Color(0xFFF1F5F9))
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = "💡 Análisis de compra: $healthReasonVal",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF1E3A1E)
+                        )
+                    }
                 }
             }
         }

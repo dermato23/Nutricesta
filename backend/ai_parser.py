@@ -31,15 +31,16 @@ Tu tarea es:
 
 3. Extraer el valor total exacto de la factura ("TotalFactura").
 4. Extraer el descuento/ahorro total de la factura ("AhorroTotal").
-5. Evaluar la salud del mercado en una escala de 1 a 10 ("PuntajeSaludable") y proveer un motivo conciso ("MotivoSaludable").
-6. Estimar rigurosamente los macronutrientes totales en GRAMOS de la compra en base a los pesos impresos de los alimentos (ej. "Granola K Proteina 600g" -> 600g de producto, "Atun 170g x6" -> 1020g, etc.) y su composición promedio de macronutrientes:
+5. Extraer el nombre del comercio emisor (ej. "Alkosto", "Exito", "D1", "Ara", "Carulla", "Jumbo", etc.) de manera concisa y limpia bajo el campo "Comercio". Si no lo encuentras, usa "Desconocido".
+6. Evaluar la salud del mercado en una escala de 1 a 10 ("PuntajeSaludable") y proveer un motivo conciso ("MotivoSaludable").
+7. Estimar rigurosamente los macronutrientes totales en GRAMOS de la compra en base a los pesos impresos de los alimentos (ej. "Granola K Proteina 600g" -> 600g de producto, "Atun 170g x6" -> 1020g, etc.) y su composición promedio de macronutrientes:
    - "Proteina_g": Gramos de proteína totales aproximados.
    - "Carbohidratos_g": Gramos de carbohidratos totales aproximados.
    - "Grasas_g": Gramos de grasas totales aproximados.
    (Calcula de manera real basada en la lista de compras del recibo, no devuelvas 0).
 
 Devuelve UNICAMENTE un objeto JSON plano con las siguientes llaves exactas:
-"TotalFactura", "AhorroTotal", "PuntajeSaludable", "MotivoSaludable", "FechaFactura", "Proteina", "Verduras", "Frutas", "Lacteos", "Carbohidratos", "Cereales", "Granos", "AseoPersonal", "AseoHogar", "Snacks", "Mascotas", "Grasas", "Proteina_g", "Carbohidratos_g", "Grasas_g"
+"TotalFactura", "AhorroTotal", "PuntajeSaludable", "MotivoSaludable", "FechaFactura", "Comercio", "Proteina", "Verduras", "Frutas", "Lacteos", "Carbohidratos", "Cereales", "Granos", "AseoPersonal", "AseoHogar", "Snacks", "Mascotas", "Grasas", "Proteina_g", "Carbohidratos_g", "Grasas_g"
 
 IMPORTANTE: Para todos los valores monetarios de las categorías y totales, escribe solo números enteros limpios, sin puntos ni comas (ej. 738894).
 Para la fecha, devuélvela en formato "YYYY-MM-DD" (FechaFactura). Si no la encuentras, usa null.
@@ -47,6 +48,7 @@ Para la fecha, devuélvela en formato "YYYY-MM-DD" (FechaFactura). Si no la encu
 Texto del recibo a analizar:
 {raw_text}
 """
+
 
 prompt_template_recipes = """
 Eres un chef experto. Basándote en el siguiente texto de un recibo de supermercado, extrae mentalmente los ingredientes comestibles comprados.
@@ -144,7 +146,7 @@ def parse_receipt_with_gemini(raw_text: str):
         print(f"Error procesando con Gemini REST API: {e}")
         raise e
 
-def generate_recipes_with_gemini(raw_text: str):
+def generate_recipes_with_gemini(raw_text: str, preferences: dict = None):
     """
     Envía el recibo a Gemini para que genere 5 recetas en formato JSON asíncronamente.
     """
@@ -155,7 +157,28 @@ def generate_recipes_with_gemini(raw_text: str):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         headers = {'Content-Type': 'application/json'}
-        final_prompt = prompt_template_recipes.replace("{raw_text}", raw_text)
+        
+        pref_text = ""
+        if preferences:
+            time_pref = preferences.get("time", "")
+            diets = preferences.get("diets", [])
+            allergies = preferences.get("allergies", [])
+            goal = preferences.get("goal", "")
+            dish_types = preferences.get("dish_types", [])
+            
+            pref_text = "\n\nIMPORTANTE: Adapta estrictamente las recetas a las siguientes preferencias del usuario:\n"
+            if time_pref:
+                pref_text += f"- Tiempo de preparación: Cada receta debe poder hacerse en menos de {time_pref}.\n"
+            if diets:
+                pref_text += f"- Dietas que sigue: {', '.join(diets)}.\n"
+            if allergies:
+                pref_text += f"- Alergias o intolerancias alimentarias (EVITA POR COMPLETO el uso de estos ingredientes): {', '.join(allergies)}.\n"
+            if goal:
+                pref_text += f"- Objetivo principal: {goal}.\n"
+            if dish_types:
+                pref_text += f"- Tipos de plato recomendados (intenta ajustarte a estos tipos si es posible): {', '.join(dish_types)}.\n"
+        
+        final_prompt = prompt_template_recipes.replace("{raw_text}", raw_text) + pref_text
         
         data = {
             "contents": [{"parts": [{"text": final_prompt}]}],
@@ -176,3 +199,49 @@ def generate_recipes_with_gemini(raw_text: str):
     except Exception as e:
         print(f"Error generando recetas: {e}")
         return []
+
+def ask_nutrition_with_gemini(raw_text: str, question: str):
+    """
+    Envía la pregunta del usuario y el contenido del recibo a Gemini para recibir una respuesta textual.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: API Key de Gemini no configurada."
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        headers = {'Content-Type': 'application/json'}
+        
+        prompt = f"""
+Eres un asistente experto en nutrición y compras saludables llamado NutriIA.
+Un usuario te hace una pregunta y debes responderle basándote en los productos comprados en su factura de supermercado (cuyo texto crudo OCR se adjunta abajo).
+
+PREGUNTA DEL USUARIO:
+"{question}"
+
+CONTENIDO DEL RECIBO (OCR RAW):
+{raw_text}
+
+Tu respuesta debe ser:
+1. En español.
+2. Clara, concisa y muy práctica, ofreciendo consejos útiles directamente aplicables a lo que el usuario compró o quiere comprar.
+3. Máximo 3 o 4 párrafos cortos o viñetas para que sea fácil de leer en la pantalla del móvil.
+4. Puedes usar emojis sutilmente para destacar puntos clave.
+"""
+        data = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7
+            }
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result_data = response.json()
+        candidate = result_data["candidates"][0]
+        return candidate["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print(f"Error consultando a NutriIA: {e}")
+        return f"Lo siento, ocurrió un error al procesar tu consulta con NutriIA: {str(e)}"
+

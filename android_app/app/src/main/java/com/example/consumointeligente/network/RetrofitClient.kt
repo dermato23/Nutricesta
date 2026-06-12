@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     // 10.0.2.2 es la IP para acceder al localhost de la máquina host desde el emulador
-    private const val BASE_URL = "http://10.0.2.2:8000"
+    private const val BASE_URL = "http://10.0.2.2:8003"
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(180, TimeUnit.SECONDS)

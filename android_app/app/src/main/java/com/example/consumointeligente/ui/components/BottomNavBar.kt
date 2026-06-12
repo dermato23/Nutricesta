@@ -2,7 +2,7 @@ package com.example.consumointeligente.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
@@ -21,7 +21,7 @@ sealed class BottomNavItem(val route: String, val icon: ImageVector, val title: 
     object Home : BottomNavItem("home", Icons.Default.Home, "Mi Mercado", Color(0xFF4CAF50))
     object Recipes : BottomNavItem("recipes", Icons.Default.RestaurantMenu, "Recetas", Color(0xFFF57F17))
     object Stats : BottomNavItem("stats", Icons.Default.ShoppingCart, "Mi Nutrición", Color(0xFF2196F3))
-    object SmartList : BottomNavItem("smart_list", Icons.Default.List, "Mi Lista", Color(0xFFFF9800))
+    object Wholesale : BottomNavItem("wholesale", Icons.Default.Store, "Mayorista", Color(0xFFFF9800))
 }
 
 @Composable
@@ -30,7 +30,7 @@ fun BottomNavBar(navController: NavController) {
         BottomNavItem.Home,
         BottomNavItem.Recipes,
         BottomNavItem.Stats,
-        BottomNavItem.SmartList
+        BottomNavItem.Wholesale
     )
 
     NavigationBar {

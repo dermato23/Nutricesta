@@ -9,6 +9,7 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     savings_goal_percent = Column(Integer, default=10) # 10, 20 o 30
+    recipe_preferences = Column(String, default="{}")
     
     pets = relationship("Pet", back_populates="owner")
     receipts = relationship("Receipt", back_populates="user")
@@ -34,6 +35,7 @@ class Receipt(Base):
     health_score = Column(Integer, default=0)
     health_reason = Column(String, default="")
     recipes = Column(String, default="[]")
+    raw_text = Column(String, default="")
     protein_g = Column(Float, default=0.0)
     carbs_g = Column(Float, default=0.0)
     fat_g = Column(Float, default=0.0)
@@ -51,3 +53,12 @@ class ReceiptItem(Base):
     receipt_id = Column(Integer, ForeignKey("receipts.id"))
     
     receipt = relationship("Receipt", back_populates="items")
+
+class WholesaleTrend(Base):
+    __tablename__ = "wholesale_trends"
+    id = Column(Integer, primary_key=True, index=True)
+    week_start = Column(String) # e.g. "2026-06-06"
+    week_end = Column(String) # e.g. "2026-06-12"
+    suben = Column(String) # JSON list of items
+    bajan = Column(String) # JSON list of items
+    date_updated = Column(DateTime, default=datetime.datetime.utcnow)

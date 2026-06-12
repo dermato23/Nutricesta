@@ -33,3 +33,16 @@ class Receipt(ReceiptBase):
 
 class OCRRequest(BaseModel):
     raw_text: str # El texto extraído por Google ML Kit en Android
+
+class RecipePreferences(BaseModel):
+    time: str
+    diets: List[str]
+    allergies: List[str]
+    goal: str
+    dish_types: List[str]
+
+class AskNutritionRequest(BaseModel):
+    question: str
+    year: Optional[int] = None
+    month: Optional[int] = None
+
