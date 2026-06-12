@@ -104,7 +104,11 @@ interface ApiService {
     ): FinancialStatsResponse
 
     @GET("/api/v1/stats/pets")
-    suspend fun getPetStats(): PetStatsResponse
+    suspend fun getPetStats(
+        @Query("pet_type") petType: String? = null,
+        @Query("breed") breed: String? = null,
+        @Query("age_range") ageRange: String? = null
+    ): PetStatsResponse
 
     @GET("/api/v1/users/1/preferences")
     suspend fun getRecipePreferences(): RecipePreferences

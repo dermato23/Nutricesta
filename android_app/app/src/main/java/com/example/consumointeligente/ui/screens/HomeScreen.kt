@@ -80,10 +80,18 @@ fun HomeScreen() {
     var selectedChartYear by remember { mutableStateOf<Int?>(null) }
     var selectedChartMonth by remember { mutableStateOf<Int?>(null) }
     
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == 1 && petStats == null) {
+    var petTypeFilter by remember { mutableStateOf("Perro") }
+    var petBreedFilter by remember { mutableStateOf("Criollo") }
+    var petAgeFilter by remember { mutableStateOf("Entre 1 y 5 años") }
+    
+    LaunchedEffect(selectedTab, petTypeFilter, petBreedFilter, petAgeFilter) {
+        if (selectedTab == 1) {
             try {
-                petStats = RetrofitClient.apiService.getPetStats()
+                petStats = RetrofitClient.apiService.getPetStats(
+                    petType = petTypeFilter,
+                    breed = petBreedFilter,
+                    ageRange = petAgeFilter
+                )
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Error Fetching Pet Stats", e)
             }
@@ -616,6 +624,135 @@ fun HomeScreen() {
                 
             } else if (selectedTab == 1) {
                 // MASCOTAS (Mismo estilo visual y de análisis que Mi Canasta)
+                
+                // Filtros de Mascota
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "Configurar Perfil de Mascota",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        var typeExpanded by remember { mutableStateOf(false) }
+                        var breedExpanded by remember { mutableStateOf(false) }
+                        var ageExpanded by remember { mutableStateOf(false) }
+
+                        val dogBreeds = listOf("Criollo", "Pinscher", "Poodle", "Labrador", "Golden Retriever")
+                        val catBreeds = listOf("Criollo", "Persa", "Siamés", "Angora", "Azul Ruso")
+                        val currentBreeds = if (petTypeFilter == "Perro") dogBreeds else catBreeds
+
+                        LaunchedEffect(petTypeFilter) {
+                            if (petTypeFilter == "Perro" && !dogBreeds.contains(petBreedFilter)) {
+                                petBreedFilter = "Criollo"
+                            } else if (petTypeFilter == "Gato" && !catBreeds.contains(petBreedFilter)) {
+                                petBreedFilter = "Criollo"
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Selector Mascota
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { typeExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.Start) {
+                                        Text("Tipo", fontSize = 11.sp, color = Color(0xFF64748B))
+                                        Text(petTypeFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = typeExpanded,
+                                    onDismissRequest = { typeExpanded = false }
+                                ) {
+                                    listOf("Perro", "Gato").forEach { type ->
+                                        DropdownMenuItem(
+                                            text = { Text(type) },
+                                            onClick = {
+                                                petTypeFilter = type
+                                                typeExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Selector Raza
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { breedExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.Start) {
+                                        Text("Raza", fontSize = 11.sp, color = Color(0xFF64748B))
+                                        Text(petBreedFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = breedExpanded,
+                                    onDismissRequest = { breedExpanded = false }
+                                ) {
+                                    currentBreeds.forEach { breed ->
+                                        DropdownMenuItem(
+                                            text = { Text(breed) },
+                                            onClick = {
+                                                petBreedFilter = breed
+                                                breedExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Selector Edad
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { ageExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.Start) {
+                                    Text("Rango de Edad", fontSize = 11.sp, color = Color(0xFF64748B))
+                                    Text(petAgeFilter, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A1E))
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = ageExpanded,
+                                onDismissRequest = { ageExpanded = false }
+                            ) {
+                                listOf("Menos de un año", "Entre 1 y 5 años", "Entre 5 y 10 años", "Entre 10 y 15 años").forEach { age ->
+                                    DropdownMenuItem(
+                                        text = { Text(age) },
+                                        onClick = {
+                                            petAgeFilter = age
+                                            ageExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (petStats == null) {
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.CenterHorizontally),

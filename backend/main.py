@@ -525,7 +525,7 @@ def get_smart_list(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/v1/stats/pets")
-def get_pet_stats(db: Session = Depends(get_db)):
+def get_pet_stats(pet_type: str = None, breed: str = None, age_range: str = None, db: Session = Depends(get_db)):
     from sqlalchemy import func
     import datetime
     
@@ -604,9 +604,11 @@ def get_pet_stats(db: Session = Depends(get_db)):
         m_name_short = MONTH_NAMES.get(m_val, "")[:3]
         monthly_history.append({"month": m_name_short, "amount": round(r.total, 2)})
 
-    recommendation = "Recomendación para Gato Bosque de Noruega (3 años):\n" \
-                     "- Requieren dieta alta en proteínas de calidad y ácidos grasos Omega 3 y 6 para mantener su denso pelaje.\n" \
-                     "- Considera comprar pasta de malta regular para evitar las bolas de pelo."
+    if pet_type and breed and age_range:
+        raw_text = latest_receipt.raw_text if latest_receipt else ""
+        recommendation = ai_parser.analyze_pet_nutrition_with_gemini(raw_text, pet_type, breed, age_range)
+    else:
+        recommendation = "Recomendación para Gato Bosque de Noruega (3 años):\n- Requieren dieta alta en proteínas de calidad y ácidos grasos Omega 3 y 6 para mantener su denso pelaje.\n- Considera comprar pasta de malta regular para evitar las bolas de pelo."
     
     return {
         "monthly_total": round(monthly_total, 2),

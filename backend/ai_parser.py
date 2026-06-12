@@ -245,3 +245,48 @@ Tu respuesta debe ser:
         print(f"Error consultando a NutriIA: {e}")
         return f"Lo siento, ocurrió un error al procesar tu consulta con NutriIA: {str(e)}"
 
+def analyze_pet_nutrition_with_gemini(raw_text: str, pet_type: str, breed: str, age_range: str) -> str:
+    """
+    Analiza la nutrición de la mascota basada en el tipo, raza, edad, y el texto OCR del mercado.
+    """
+    import os, requests
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return f"Recomendación para {pet_type} {breed} ({age_range}):\n- Requieren dieta alta en proteínas de calidad y balanceada.\n(Error: GEMINI_API_KEY no configurada)."
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        headers = {'Content-Type': 'application/json'}
+        
+        prompt = f"""
+Eres un veterinario y nutricionista de mascotas experto en Colombia.
+Analiza la nutrición de un {pet_type} de raza {breed} y edad {age_range}.
+Además, revisa el siguiente texto crudo del mercado del usuario para ver si compró algún alimento o producto para mascotas (ej: marcas como Chunky, Pedigree, Mirringo, Cat Chow, Dog Chow, Royal Canin, Pro Plan, etc. o genéricos como "comida perro").
+
+TEXTO DEL MERCADO (OCR):
+{raw_text}
+
+Tu respuesta debe constar de dos partes claramente separadas:
+1. Recomendación Nutricional detallada para esta mascota según su raza y edad en Colombia. (Sé específico con los requerimientos, ej: tendencia a sobrepeso, cuidado de articulaciones, pelaje, tamaño de la croqueta, etc. con viñetas cortas).
+2. Nota de Calidad de Compra (Alerta): Revisa el texto del mercado. Si encuentras algún alimento para mascotas que consideres de baja calidad (por ejemplo, marcas comerciales económicas muy altas en sodio, harinas de subproductos o colorantes artificiales como Pedigree, Chunky, Mirringo, etc.), indícalo amigablemente advirtiendo por qué no es ideal y sugiriendo una alternativa más saludable (ej. marcas premium o recetas naturales). Si no encuentras ningún producto de mascota o si el que compró es de buena calidad, puedes omitir la alerta o decir que no se detectaron productos de baja calidad.
+
+Escribe en español, claro y conciso. Máximo 150 palabras en total.
+"""
+        data = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.4
+            }
+        }
+        
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response.raise_for_status()
+        
+        result_data = response.json()
+        candidate = result_data["candidates"][0]
+        return candidate["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print(f"Error analizando nutrición de mascotas: {e}")
+        return f"Recomendación para {pet_type} {breed} ({age_range}):\n- Mantener una hidratación adecuada y dieta balanceada."
+
+
