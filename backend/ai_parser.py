@@ -1,10 +1,18 @@
 import os
 import json
+import logging
 import requests
 import time
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger("nutricesta.ai")
+
+# La API key viaja en el header 'x-goog-api-key' y NUNCA en la URL:
+# si va en la URL, los mensajes de error de requests la incluyen y puede
+# terminar filtrada en logs o en respuestas al cliente.
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 prompt_template_financial = """
 Eres un asistente experto en analizar recibos de compra y clasificar productos.
@@ -84,8 +92,8 @@ def parse_receipt_with_gemini(raw_text: str):
         raise Exception("API Key de Gemini no configurada. Por favor crear el archivo .env")
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        headers = {'Content-Type': 'application/json'}
+        url = GEMINI_URL
+        headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
         final_prompt = prompt_template_financial.replace("{raw_text}", raw_text)
         
         data = {
@@ -108,7 +116,7 @@ def parse_receipt_with_gemini(raw_text: str):
             response = requests.post(url, headers=headers, json=data)
             if response.status_code in [429, 503]:
                 if attempt < max_retries - 1:
-                    print(f"Error {response.status_code} de Gemini. Reintentando en {2 ** attempt} segundos...")
+                    logger.warning("Error %s de Gemini. Reintentando en %s segundos...", response.status_code, 2 ** attempt)
                     time.sleep(2 ** attempt)
                     continue
             response.raise_for_status()
@@ -117,19 +125,19 @@ def parse_receipt_with_gemini(raw_text: str):
         result_data = response.json()
         
         if "candidates" not in result_data or not result_data["candidates"]:
-            print(f"Respuesta inesperada de Gemini: {result_data}")
+            logger.warning("Respuesta inesperada de Gemini: %s", result_data)
             return []
-            
+
         candidate = result_data["candidates"][0]
         finish_reason = candidate.get("finishReason", "UNKNOWN")
-        print(f"Gemini Finish Reason: {finish_reason}")
-        
+        logger.debug("Gemini Finish Reason: %s", finish_reason)
+
         if "content" not in candidate or "parts" not in candidate["content"]:
-            print(f"La respuesta fue bloqueada o no tiene contenido: {candidate}")
+            logger.warning("La respuesta fue bloqueada o no tiene contenido: %s", candidate)
             return []
-            
+
         raw_response = candidate["content"]["parts"][0]["text"].strip()
-        print(f"Respuesta cruda de Gemini:\n{raw_response}")
+        logger.debug("Respuesta cruda de Gemini:\n%s", raw_response)
         
         # Remover bloques de markdown si los hay
         if raw_response.startswith("```json"):
@@ -143,7 +151,7 @@ def parse_receipt_with_gemini(raw_text: str):
         result_json = json.loads(raw_response.strip())
         return result_json
     except Exception as e:
-        print(f"Error procesando con Gemini REST API: {e}")
+        logger.error("Error procesando con Gemini REST API: %s", e)
         raise e
 
 def generate_recipes_with_gemini(raw_text: str, preferences: dict = None):
@@ -155,9 +163,9 @@ def generate_recipes_with_gemini(raw_text: str, preferences: dict = None):
         return []
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        headers = {'Content-Type': 'application/json'}
-        
+        url = GEMINI_URL
+        headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
+
         pref_text = ""
         if preferences:
             time_pref = preferences.get("time", "")
@@ -197,7 +205,7 @@ def generate_recipes_with_gemini(raw_text: str, preferences: dict = None):
         
         return json.loads(raw_response)
     except Exception as e:
-        print(f"Error generando recetas: {e}")
+        logger.error("Error generando recetas: %s", e)
         return []
 
 def ask_nutrition_with_gemini(raw_text: str, question: str):
@@ -209,9 +217,9 @@ def ask_nutrition_with_gemini(raw_text: str, question: str):
         return "Error: API Key de Gemini no configurada."
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        headers = {'Content-Type': 'application/json'}
-        
+        url = GEMINI_URL
+        headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
+
         prompt = f"""
 Eres un asistente experto en nutrición y compras saludables llamado NutriIA.
 Un usuario te hace una pregunta y debes responderle basándote en los productos comprados en su factura de supermercado (cuyo texto crudo OCR se adjunta abajo).
@@ -242,8 +250,10 @@ Tu respuesta debe ser:
         candidate = result_data["candidates"][0]
         return candidate["content"]["parts"][0]["text"].strip()
     except Exception as e:
-        print(f"Error consultando a NutriIA: {e}")
-        return f"Lo siento, ocurrió un error al procesar tu consulta con NutriIA: {str(e)}"
+        # El detalle solo se registra en el servidor; al cliente va un mensaje
+        # genérico para no filtrar información interna (URLs, credenciales, etc.)
+        logger.error("Error consultando a NutriIA: %s", e)
+        return "Lo siento, ocurrió un error al procesar tu consulta con NutriIA. Intenta de nuevo en unos minutos."
 
 def analyze_pet_nutrition_with_gemini(raw_text: str, pet_type: str, breed: str, age_range: str) -> str:
     """
@@ -255,9 +265,9 @@ def analyze_pet_nutrition_with_gemini(raw_text: str, pet_type: str, breed: str, 
         return f"Recomendación para {pet_type} {breed} ({age_range}):\n- Requieren dieta alta en proteínas de calidad y balanceada.\n(Error: GEMINI_API_KEY no configurada)."
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        headers = {'Content-Type': 'application/json'}
-        
+        url = GEMINI_URL
+        headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
+
         prompt = f"""
 Eres un veterinario y nutricionista de mascotas experto en Colombia.
 Analiza la nutrición de un {pet_type} de raza {breed} y edad {age_range}.
@@ -286,7 +296,7 @@ Escribe en español, claro y conciso. Máximo 150 palabras en total.
         candidate = result_data["candidates"][0]
         return candidate["content"]["parts"][0]["text"].strip()
     except Exception as e:
-        print(f"Error analizando nutrición de mascotas: {e}")
+        logger.error("Error analizando nutrición de mascotas: %s", e)
         return f"Recomendación para {pet_type} {breed} ({age_range}):\n- Mantener una hidratación adecuada y dieta balanceada."
 
 

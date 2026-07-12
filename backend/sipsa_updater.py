@@ -78,7 +78,7 @@ def download_and_parse_sipsa(ref_date=None) -> dict:
         if not api_key:
             raise Exception("GEMINI_API_KEY not configured.")
             
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        gemini_url = ai_parser.GEMINI_URL
         prompt = f"""
 Analiza el siguiente extracto de texto del Boletín SIPSA del DANE. Tu tarea es extraer la lista exacta de productos de "LO QUE MÁS SUBE" y "LO QUE MÁS BAJA" únicamente para la ciudad de "Bogotá D. C.".
 
@@ -89,7 +89,7 @@ Reglas de salida:
 TEXTO DEL BOLETÍN:
 {page_text}
 """
-        headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
         data = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
@@ -97,7 +97,7 @@ TEXTO DEL BOLETÍN:
                 "responseMimeType": "application/json"
             }
         }
-        
+
         gemini_resp = requests.post(gemini_url, headers=headers, json=data, timeout=30)
         gemini_resp.raise_for_status()
         

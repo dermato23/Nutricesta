@@ -16,7 +16,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Backend local visto desde el emulador de Android
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8003\"")
+        }
         release {
+            // TODO: reemplazar por la URL real del servidor cuando exista.
+            // Debe ser HTTPS: la network_security_config bloquea HTTP fuera del emulador.
+            buildConfigField("String", "BASE_URL", "\"https://api.nutricesta.example.com\"")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -28,7 +35,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 

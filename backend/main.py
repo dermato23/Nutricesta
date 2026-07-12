@@ -1,11 +1,39 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 import models, schemas, database, ai_parser
 import json
+import logging
+
+# En producción subir el nivel a INFO deja fuera los logger.debug(),
+# que son los únicos que registran contenido completo de facturas (PII).
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("nutricesta")
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Consumo Inteligente API")
+
+# Límite de peticiones por IP en los endpoints que consumen la API de Gemini,
+# para que un bucle o un abuso no queme la cuota (y el presupuesto).
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+def safe_float(value, default=0.0):
+    """Convierte a float valores devueltos por la IA sin confiar en su formato."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(value, default=0):
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
 
 # Dependencia para obtener la DB
 def get_db():
@@ -61,7 +89,7 @@ def generate_recipes_background(receipt_id: int, raw_text: str):
             try:
                 preferences = json.loads(user.recipe_preferences)
             except Exception as e:
-                print(f"Error parseando preferencias: {e}")
+                logger.warning("Error parseando preferencias: %s", e)
                 
         recipes_list = ai_parser.generate_recipes_with_gemini(raw_text, preferences)
         if recipes_list:
@@ -72,68 +100,61 @@ def generate_recipes_background(receipt_id: int, raw_text: str):
                 db_receipt.recipes = recipes_json
                 db.commit()
     except Exception as e:
-        print(f"Error en background task de recetas: {e}")
+        logger.error("Error en background task de recetas: %s", e)
     finally:
         db.close()
 
 @app.post("/api/v1/receipts/upload", response_model=schemas.Receipt)
-def upload_receipt(request: schemas.OCRRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+@limiter.limit("10/hour")
+def upload_receipt(request: Request, payload: schemas.OCRRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Recibe el texto raw procesado por el OCR en el móvil y lo clasifica usando Gemini.
     """
-    print(f"--- RAW OCR TEXT RECEIVED ---\n{request.raw_text}\n-----------------------------")
+    logger.info("Factura recibida por OCR (%d caracteres)", len(payload.raw_text))
+    logger.debug("--- RAW OCR TEXT RECEIVED ---\n%s\n-----------------------------", payload.raw_text)
     # 1. Clasificar usando la IA (Gemini)
     try:
-        processed_items_dict = ai_parser.parse_receipt_with_gemini(request.raw_text)
+        processed_items_dict = ai_parser.parse_receipt_with_gemini(payload.raw_text)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error procesando la IA: {str(e)}")
-        
-    # Extraer el total y eliminarlo del diccionario para que no sea tratado como un ítem de categoría
-    total = float(processed_items_dict.pop("TotalFactura", 0.0))
-    if total == 0.0:
-        total = sum(float(val) for val in processed_items_dict.values())
-        
-    ahorro = float(processed_items_dict.pop("AhorroTotal", 0.0))
-    health_score = int(processed_items_dict.pop("PuntajeSaludable", 0))
-    health_reason = processed_items_dict.pop("MotivoSaludable", "")
-    
-    store_name = processed_items_dict.pop("Comercio", "Desconocido")
-    
-    protein_g = 0.0
-    try:
-        if "Proteina_g" in processed_items_dict:
-            protein_g = float(processed_items_dict.pop("Proteina_g"))
-    except Exception as e:
-        print(f"Error parsing Proteina_g: {e}")
-        
-    carbs_g = 0.0
-    try:
-        if "Carbohidratos_g" in processed_items_dict:
-            carbs_g = float(processed_items_dict.pop("Carbohidratos_g"))
-    except Exception as e:
-        print(f"Error parsing Carbohidratos_g: {e}")
-        
-    fat_g = 0.0
-    try:
-        if "Grasas_g" in processed_items_dict:
-            fat_g = float(processed_items_dict.pop("Grasas_g"))
-    except Exception as e:
-        print(f"Error parsing Grasas_g: {e}")
-    
+        # No exponer str(e) al cliente: puede contener detalles internos.
+        logger.error("Error procesando la IA: %s", e)
+        raise HTTPException(status_code=500, detail="Error procesando la factura con la IA. Intenta de nuevo.")
+
+    # La salida de la IA no es confiable: validar estructura y tipos antes de usarla.
+    if not isinstance(processed_items_dict, dict):
+        logger.error("La IA no devolvió un objeto JSON válido: %r", type(processed_items_dict))
+        raise HTTPException(status_code=500, detail="Error procesando la factura con la IA. Intenta de nuevo.")
+
+    # Extraer primero todos los campos de metadatos y macros, para que el
+    # diccionario restante contenga únicamente las categorías de gasto.
+    total = safe_float(processed_items_dict.pop("TotalFactura", 0.0))
+    ahorro = safe_float(processed_items_dict.pop("AhorroTotal", 0.0))
+    # Puntaje acotado al rango 0-10 aunque la IA devuelva otra cosa
+    health_score = max(0, min(10, safe_int(processed_items_dict.pop("PuntajeSaludable", 0))))
+    health_reason = str(processed_items_dict.pop("MotivoSaludable", "") or "")[:500]
+    store_name = str(processed_items_dict.pop("Comercio", "Desconocido") or "Desconocido")[:100]
+    protein_g = safe_float(processed_items_dict.pop("Proteina_g", 0.0))
+    carbs_g = safe_float(processed_items_dict.pop("Carbohidratos_g", 0.0))
+    fat_g = safe_float(processed_items_dict.pop("Grasas_g", 0.0))
+
     # Extraer y parsear fecha de la factura
     fecha_factura_str = processed_items_dict.pop("FechaFactura", None)
     import datetime
     parsed_date = None
     if fecha_factura_str:
         try:
-            parsed_date = datetime.datetime.strptime(fecha_factura_str.strip(), "%Y-%m-%d")
+            parsed_date = datetime.datetime.strptime(str(fecha_factura_str).strip(), "%Y-%m-%d")
         except Exception as e:
-            print(f"Error parseando fecha '{fecha_factura_str}': {e}")
+            logger.warning("Error parseando fecha '%s': %s", fecha_factura_str, e)
             parsed_date = None
-            
+
     if not parsed_date:
         parsed_date = datetime.datetime.utcnow()
-    
+
+    if total == 0.0:
+        # Respaldo: si la IA no encontró el total, sumar las categorías detectadas
+        total = sum(safe_float(val) for val in processed_items_dict.values())
+
     # 2. Guardar factura
     db_receipt = models.Receipt(
         store_name=store_name,
@@ -143,7 +164,7 @@ def upload_receipt(request: schemas.OCRRequest, background_tasks: BackgroundTask
         health_score=health_score,
         health_reason=health_reason,
         recipes="[]",
-        raw_text=request.raw_text,
+        raw_text=payload.raw_text,
         protein_g=protein_g,
         carbs_g=carbs_g,
         fat_g=fat_g,
@@ -170,10 +191,7 @@ def upload_receipt(request: schemas.OCRRequest, background_tasks: BackgroundTask
     }
 
     for cat_key, val in processed_items_dict.items():
-        try:
-            val_num = float(val)
-        except (ValueError, TypeError):
-            val_num = 0.0
+        val_num = safe_float(val)
         if val_num > 0:
             full_category = CATEGORY_LABELS.get(cat_key, cat_key)
             db_item = models.ReceiptItem(
@@ -187,7 +205,7 @@ def upload_receipt(request: schemas.OCRRequest, background_tasks: BackgroundTask
     db.refresh(db_receipt)
     
     # 4. Enviar generación de recetas a segundo plano
-    background_tasks.add_task(generate_recipes_background, db_receipt.id, request.raw_text)
+    background_tasks.add_task(generate_recipes_background, db_receipt.id, payload.raw_text)
     
     return db_receipt
 
@@ -415,33 +433,29 @@ def get_financial_stats(year: int = None, month: int = None, db: Session = Depen
     }
 
 @app.post("/api/v1/nutrition/ask")
-def ask_nutrition_question(request: schemas.AskNutritionRequest, db: Session = Depends(get_db)):
+@limiter.limit("30/hour")
+def ask_nutrition_question(request: Request, payload: schemas.AskNutritionRequest, db: Session = Depends(get_db)):
     """
     Pregunta a NutriIA sobre los productos del mercado del mes seleccionado.
     """
     from sqlalchemy import func
     import datetime
-    
-    print(f"--- ASK NUTRITION RECEIVED ---")
-    print(f"Question: {request.question}")
-    print(f"Year: {request.year} (type: {type(request.year)})")
-    print(f"Month: {request.month} (type: {type(request.month)})")
-    
+
+    logger.info("Pregunta a NutriIA recibida (year=%s, month=%s)", payload.year, payload.month)
+    logger.debug("Question: %s", payload.question)
+
     # Encontrar la factura más reciente del mes seleccionado
     latest_receipt = None
-    if request.year is not None and request.month is not None:
-        target_year_str = f"{request.year:04d}"
-        target_month_str = f"{request.month:02d}"
-        print(f"Searching database for Year: {target_year_str}, Month: {target_month_str}")
+    if payload.year is not None and payload.month is not None:
+        target_year_str = f"{payload.year:04d}"
+        target_month_str = f"{payload.month:02d}"
         latest_receipt = db.query(models.Receipt).filter(
             models.Receipt.user_id == 1,
             func.strftime('%Y', models.Receipt.date_uploaded) == target_year_str,
             func.strftime('%m', models.Receipt.date_uploaded) == target_month_str
         ).order_by(models.Receipt.date_uploaded.desc(), models.Receipt.id.desc()).first()
-        print(f"Found receipt: {latest_receipt}")
     else:
         latest_receipt = db.query(models.Receipt).filter(models.Receipt.user_id == 1).order_by(models.Receipt.date_uploaded.desc()).first()
-        print(f"Fallback to latest receipt overall: {latest_receipt}")
         
     if not latest_receipt:
         return {"answer": "No tienes facturas registradas para este mes. Sube una factura primero para que pueda analizar tus compras."}
@@ -462,9 +476,9 @@ Puntaje saludable de esta compra: {latest_receipt.health_score}/10 (Evaluación:
 
 Artículos comprados:
 {items_str}"""
-        print("Fallback context constructed successfully:\n", raw_text)
-        
-    answer = ai_parser.ask_nutrition_with_gemini(raw_text, request.question)
+        logger.debug("Fallback context constructed successfully:\n%s", raw_text)
+
+    answer = ai_parser.ask_nutrition_with_gemini(raw_text, payload.question)
     return {"answer": answer}
 
 @app.get("/api/v1/stats/wholesale")
@@ -479,7 +493,7 @@ def get_wholesale_trends(db: Session = Depends(get_db)):
     try:
         sipsa_updater.update_sipsa_db(db)
     except Exception as e:
-        print(f"Error checking/updating SIPSA: {e}")
+        logger.warning("Error checking/updating SIPSA: %s", e)
         
     trend = db.query(models.WholesaleTrend).order_by(models.WholesaleTrend.date_updated.desc()).first()
     if not trend:
@@ -630,7 +644,8 @@ def get_user_preferences(db: Session = Depends(get_db)):
         return {}
 
 @app.post("/api/v1/users/1/preferences")
-def update_user_preferences(prefs: schemas.RecipePreferences, db: Session = Depends(get_db)):
+@limiter.limit("20/hour")
+def update_user_preferences(request: Request, prefs: schemas.RecipePreferences, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == 1).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -649,7 +664,7 @@ def update_user_preferences(prefs: schemas.RecipePreferences, db: Session = Depe
                 latest_receipt.recipes = json.dumps(recipes_list, ensure_ascii=False)
                 db.commit()
         except Exception as e:
-            print(f"Error regenerando recetas al actualizar preferencias: {e}")
+            logger.error("Error regenerando recetas al actualizar preferencias: %s", e)
             
     return {"status": "ok"}
 

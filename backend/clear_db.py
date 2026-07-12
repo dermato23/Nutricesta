@@ -11,10 +11,11 @@ def clear_db():
     db = SessionLocal()
     try:
         # Crear usuario por defecto
+        # Datos ficticios: no usar nombres ni correos de personas reales en el código.
         user = models.User(
             id=1,
-            name="Laura Ramírez",
-            email="lamramirezgo@unal.edu.co",
+            name="Usuaria Demo",
+            email="usuaria.demo@ejemplo.com",
             savings_goal_percent=10
         )
         db.add(user)

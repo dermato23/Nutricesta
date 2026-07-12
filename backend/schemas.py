@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -32,7 +32,9 @@ class Receipt(ReceiptBase):
         from_attributes = True
 
 class OCRRequest(BaseModel):
-    raw_text: str # El texto extraído por Google ML Kit en Android
+    # El texto extraído por Google ML Kit en Android. Una factura larga ronda
+    # los 8.000 caracteres; el tope evita abusos de tamaño contra la API de IA.
+    raw_text: str = Field(min_length=1, max_length=20000)
 
 class RecipePreferences(BaseModel):
     time: str
@@ -42,7 +44,7 @@ class RecipePreferences(BaseModel):
     dish_types: List[str]
 
 class AskNutritionRequest(BaseModel):
-    question: str
-    year: Optional[int] = None
-    month: Optional[int] = None
+    question: str = Field(min_length=1, max_length=1000)
+    year: Optional[int] = Field(default=None, ge=2000, le=2100)
+    month: Optional[int] = Field(default=None, ge=1, le=12)
 

@@ -1,5 +1,6 @@
 package com.example.consumointeligente.network
 
+import com.example.consumointeligente.BuildConfig
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import okhttp3.OkHttpClient
@@ -7,8 +8,9 @@ import java.util.concurrent.TimeUnit
 
 
 object RetrofitClient {
-    // 10.0.2.2 es la IP para acceder al localhost de la máquina host desde el emulador
-    private const val BASE_URL = "http://10.0.2.2:8003"
+    // Definida por build type en app/build.gradle.kts:
+    // debug -> http://10.0.2.2:8003 (emulador), release -> servidor HTTPS
+    private val BASE_URL = BuildConfig.BASE_URL
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(180, TimeUnit.SECONDS)

@@ -15,18 +15,18 @@ C:
 Colombiana de Comercio S.A.
 1 101
 Factura Electronica de Venta: X2272572915
-Telefo.: 3212760831
+Telefo.: 3000000000
 CR 68 No 72-43
-Cliente: LAURA MELISSA RAMIREZ GOMEZ
+Cliente: CLIENTE DE PRUEBA
 Direcc.: CL 1 1
 1 1 1 1 1 1 1
-Barrio 20 De Julio
+Barrio Ficticio
 Telefono: (601)4073033
 Forma de Pago: CONTADO
 2 120
 ALKOST0 AV. 68
 Nit. 890900943-1
-Email: lamramirezgo@unal. edu. co
+Email: cliente.prueba@ejemplo. com
 vozcliente@alkosto.com. co
 6
 Medio de Pago: TARJETA DEBITO/CREDITO
@@ -35,8 +35,8 @@ Articulo
 ALKOST0
 7 164
 9
-Darwin Florez RodriguezLocal: 02
-1032465695
+Cajero De PruebaLocal: 02
+1000000001
 Calabacin amarillo kg
 Descuento 30,00 %
 EXC 0 0,54
@@ -463,8 +463,8 @@ Texto del recibo a analizar:
 """
 
 def test_model_prompt(model_name, prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    headers = {'Content-Type': 'application/json'}
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+    headers = {'Content-Type': 'application/json', 'x-goog-api-key': api_key}
     data = {
         "contents": [{"parts": [{"text": prompt.replace("{raw_text}", raw_text_mayo)}]}],
         "generationConfig": {
